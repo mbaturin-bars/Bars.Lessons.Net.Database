@@ -1,0 +1,244 @@
+# Взаимодействие с реляционными базами данных в NET приложении
+
+## Введение
+
+На данный момент большинство наших приложений так или иначе должно хранить какие либо данные.  
+Это могут быть:
+
+- системные данные - информация о пользователях системы (логины, имена и др), данные для авторизации и т.п.;
+- справочные данные, которые необходимы для работы системы;
+- если система ведёт какие либо расчёты - результаты этих расчётов;
+
+и другие.
+
+Хранить данные можно разными путями - в памяти приложения, напрямую в файловой системе, в различных базах данных - SQL (
+например, PostgreSQL или MySQL) и NoSQL (Redis, Clickhouse и другие).
+
+Отраслевым стандартом является хранение долговременных данных в SQL ??
+
+В рамках этого занятия мы покажем, как можно взаимодействовать с БД из NET приложения.
+
+## ADO.NET
+
+ADO.NET (ActiveX Data Objects for .NET) - это набор библиотек, позволяющий организовать доступ NET приложений к
+различным источникам данных (базы данных MSSQL, MySQL, xml документы и др.).
+
+> Сам по себе ADO.NET ведёт историю ещё с NETFramework (устаревшая версия фреймворка), однако некоторые базовые понятия
+> в нём ещё актуальны.
+
+Основными компонентами в ADO.NET являются:
+
+- Connection (соединение) - соединение с источником данных (базой данных, файлом и т.п.)
+- Command (команда) - запрос к источнику данных
+- DataReader - объект, позволяющий читать результаты запроса в базе данных
+
+> Ps. Некоторые компоненты намерено не упоминаются (например DataSet, DataTable), потому что работа с ними зачастую либо
+> не ведётся (устаревшие подходы), либо ведётся "под капотом" других более высокоуровневых библиотек. Если вы по какой
+> то причине захотели изучить весь ADO.NET, обратитесь к книгам или к официальной
+> документации https://learn.microsoft.com/ru-ru/dotnet/framework/data/adonet/
+
+### Взаимодействие с PostgreSQL при помощи Npgsql
+
+В стандартную библиотеку ... включены только коннекторы к базам данных ...
+
+Для подключения к базам данных PostgreSQL в подавляющем большинстве приложений используется библиотека Npgsql - это
+опенсорсный ADO.NET провадйер для подключения к PostgreSQL.
+
+> Исходный код находится в репозитории https://github.com/npgsql/npgsql  
+> Документация на английском языке находится на оф. сайте https://www.npgsql.org/doc/index.html
+
+Попробуем создать приложение и подключить его к базе данных PostgreSQL, для этого:
+
+- Создадим новое консольное приложение - через интерфейс или командой
+
+```shell
+dotnet new console --name Database.Npgsql --framework net8.0
+```
+
+- Добавим зависимость от пакета Npgsql 8.0.2 (или любой актуальной) - через интерфейс или командой
+
+```shell
+dotnet add package Npgsql --version 8.0.2
+```
+
+- В класс `Program.cs` напишем следующий код
+
+```csharp
+using Npgsql;
+
+// 1.
+const string connectionString = "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=postgres";
+await using var dataSource = NpgsqlDataSource.Create(connectionString);
+
+// 2.
+const string createTableCommandText = @"
+        DROP TABLE IF EXISTS user_info; -- На всякий случай удалим таблицу, если она уже есть в БД.
+        CREATE TABLE IF NOT EXISTS user_info (
+            id bigserial PRIMARY KEY, 
+            login VARCHAR(100) NOT NULL, 
+            created_on TIMESTAMP WITH TIME ZONE NOT NULL
+        )";
+
+await using (var cmd = dataSource.CreateCommand(createTableCommandText))
+{
+    await cmd.ExecuteNonQueryAsync();
+}
+
+// 3.
+var firstUser = "first_some_user";
+var secondUser = "second_some_user";
+var thirdUser = "some_third_login";
+
+var insertRecordsCommandText = $@"
+    INSERT INTO user_info(login, created_on) 
+    VALUES 
+        ($1, now()), 
+        ($2, now()), 
+        ('{thirdUser}', now());";
+
+await using (var cmd = dataSource.CreateCommand(insertRecordsCommandText))
+{
+    cmd.Parameters.Add(new NpgsqlParameter { Value = firstUser });
+    cmd.Parameters.Add(new NpgsqlParameter { Value = secondUser });
+    await cmd.ExecuteNonQueryAsync();
+}
+
+
+// 4.
+const string selectRecordsCommandText = "SELECT id, login, created_on FROM user_info";
+await using var selectCmd = dataSource.CreateCommand(selectRecordsCommandText);
+
+await using var reader = await selectCmd.ExecuteReaderAsync();
+while (await reader.ReadAsync())
+{
+    Console.WriteLine($"Идентификатор {reader.GetInt64(0)}, " +
+                      $"пользователь {reader.GetString(1)}, " +
+                      $"дата создания - {reader.GetDateTime(2)}");
+}
+```
+
+Разберём написанное по пунктам:
+
+1. Инициируем подключение к базе данных при помощи метода `NpgsqlDataSource.Create`
+2. Добавляем таблицу пользователей в базу данных. Для этого:
+    - Создаём команду к БД при помощи метода NpgsqlDataSource.CreateCommand. В аргументах передаём текст SQL запроса.
+    - Выполняем команду в БД при помощи метода NpgsqlCommand.ExecuteNonQueryAsync.
+3. Выполняем вставку записей в базу данных.   
+   Кроме вышеописанных методов используется также `NpgsqlCommand.Parameters.Add` - метод вставляет указанное значение в
+   запрос. Значение можно вставить также внутрь запроса напрямую (например, как указано значение _some_third_login_,
+   однако параметры работают эффективнее и защищают от SQL-инъекций).
+4. Запрашиваем данные из базы данных при помощи запроса `SELECT`. Используются следующие методы:
+    - `ExecuteReaderAsync` - выполняет команду в базе данных и возвращает объект `NpgsqlDataReader`, который необходим
+      для получения результатов запроса.
+    - `ReadAsync` - перемещает указатель к следующей записи результатов. Возвращает true или false в зависимости от
+      того,
+      существует ли запись.
+    - `GetInt64`, `GetString`, `GetDateTime` - используются для получения значения из столбца текущей записи с
+      определённым типом. Число в аргументе - порядковый номер столбца начиная с 0.
+
+> Примечание:
+> 1. Описание параметров строки подключения приводится на оф. сайте документации
+     Npgsql https://www.npgsql.org/doc/connection-string-parameters.html.  
+     `NpgsqlDataSource.Create` - это новый способ работы с подключениями к БД.  
+     В версиях до Npgsql 7.0 вы должны использовать класс `NpgsqlConnection` для работы с
+     БД. Подробнее в https://www.npgsql.org/doc/basic-usage.html#connections-without-a-data-source
+> 2. Методы `CreateCommand` и `ExecuteNonQueryAsync` являются реализациями стандартных методов ADO.NET, см
+> 3. Подробнее о параметрах Npgsql в документации https://www.npgsql.org/doc/basic-usage.html#parameters
+> 4. `ExecuteReaderAsync`, `ReadAsync` являются реализациями стандартных методов ADO.NET,
+     см https://learn.microsoft.com/ru-ru/dotnet/api/system.data.common.dbcommand?view=net-8.0
+     и https://learn.microsoft.com/ru-ru/dotnet/api/system.data.common.dbdatareader?view=net-8.0
+
+Мы подключились к БД PostgreSQL и даже смогли провести несколько запросов. Однако, несмотря на то, что запросы были сами
+по себе простые - код получился достаточно "многословный". Например на то, чтобы достать записи пользователей из БД нам
+потребовалось как минимум выполнить команду, запустить цикл для вычитывания записей и прописать порядок чтения строки.
+
+Хотелось бы в повседневной разработке использовать более простое решение, которое не уступало бы по
+производительности.
+
+### Dapper
+
+Dapper - это библиотека, которая расширяет возможности ADO.NET соединений с помощью собственных методов расширений
+для `IDbConnection`. Она представляет довольно простой и удобный API для выполнения SQL запросов, не зависимый от типа
+базы данных.
+
+Перепишем наш код с использованием Dapper в новом проекте, для этого:
+
+- Создадим новое консольное приложение - через интерфейс или командой
+
+```shell
+dotnet new console --name Database.Dapper --framework net8.0
+```
+
+- Добавим зависимости от пакетов Dapper 2.1.28 и Npgsql 8.0.2 (или любых актуальных) - через интерфейс или командой
+
+```shell
+dotnet add package Dapper --version 2.1.28 && dotnet add package Npgsql --version 8.0.2
+```
+
+- В класс `Program.cs` напишем следующий код
+
+```csharp
+using Dapper;
+using Npgsql;
+
+// 1.
+const string connectionString = "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=postgres";
+await using var dataSource = NpgsqlDataSource.Create(connectionString);
+await using var connection = await dataSource.OpenConnectionAsync();
+
+// 2.
+const string createTableCommandText = @"
+        DROP TABLE IF EXISTS user_info;
+        CREATE TABLE IF NOT EXISTS user_info (
+            id bigserial PRIMARY KEY, 
+            login VARCHAR(100) NOT NULL, 
+            created_on TIMESTAMP WITH TIME ZONE NOT NULL
+        )";
+
+await connection.ExecuteAsync(createTableCommandText);
+
+// 3.
+var users = new UserInfo
+var firstUser = "first_some_user";
+var secondUser = "second_some_user";
+var thirdUser = "some_third_login";
+
+var insertRecordsCommandText = $@"
+    INSERT INTO user_info(login, created_on) 
+    VALUES 
+        (@firstUser, now()), 
+        (@secondUser, now()), 
+        ('{thirdUser}', now());";
+
+await connection.ExecuteAsync(insertRecordsCommandText, new { firstUser, secondUser });
+
+// 4.
+const string selectRecordsCommandText = @"SELECT id, login, created_on as ""CreationDate"" FROM user_info";
+var usersEnumerable = await connection.QueryAsync<UserInfo>(selectRecordsCommandText);
+foreach (var user in usersEnumerable)
+{
+    Console.WriteLine($"Идентификатор {user.Id}, пользователь {user.Login}, дата создания - {user.CreationDate}");
+}
+
+public record UserInfo(long Id, string Login, DateTime CreationDate): UserCreateInfo(Login);
+public record UserCreateInfo(string Login);
+```
+
+Код выполнения запросов значительно упростился, давайте разберём его:
+
+1. Мы всё так же создаём объект NpgsqlDataSource. Однако, вместо него дальше в коде мы начинаем использовать объект
+   NpgsqlConnection - так как Dapper предоставляет расширения именно соединения, а не DataSource.
+2. Любые запросы, не требующие возврата результата могут быть выполнены при помощи метода `ExecuteAsync` - в данном
+   случае мы передаём в него SQL текст запроса.
+3. Для вставки записей также мы можем использовать `ExecuteAsync`. В данном случае мы используем механизм параметризации
+   запроса:
+    1. В SQL запросе мы указываем место, в которое необходимо поместить параметризируемое значение. В нашем случае
+       это `@Login`.
+    2. В аргумент `object? parameters` метода `ExecuteAsync` мы передаём параметры - в нашем случае это массив
+       пользователей. Dapper понимает, что необходимо выполнить массовую вставку и самостоятельно перепишет запрос,
+       чтобы в базу данных вставились все записи.
+4. Для выборки данных мы не используем Reader - мы можем получить перечисление объектов с помощью метода QueryAsync.  
+   Так мы получим уже готовый для использования список объектов со всеми данными пользователей, который потом удобно
+   будет использовать дальше в приложении.
+
+### ORM на примере EntityFramework
