@@ -65,7 +65,7 @@ foreach (var user in usersEnumerable)
 /// <summary>
 /// Информация о пользователе.
 /// </summary>
-/// <param name="Id"></param>
+/// <param name="Id">Идентификатор</param>
 /// <param name="Login">Логин пользователя.</param>
 /// <param name="CreationDate">Дата\время создания пользователя.</param>
 public sealed record UserInfo(long Id, string Login, DateTime CreationDate);

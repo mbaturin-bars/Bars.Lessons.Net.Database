@@ -18,7 +18,6 @@ public sealed record UserInfo(long Id, string Login, DateTime CreationDate);
 /// <param name="Login">Логин пользователя.</param>
 public sealed record UserCreationInfo(string Login);
 
-
 /// <summary>
 /// Объединяет конечные точки, предназначенные для работы с пользователями.
 /// </summary>

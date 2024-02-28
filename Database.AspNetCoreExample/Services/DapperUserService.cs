@@ -6,7 +6,7 @@ using Npgsql;
 namespace Database.AspNetCoreExample.Services;
 
 /// <summary>
-/// Сервис, позволяющий работать с временем базы данных.
+/// Сервис, позволяющий работать с пользователями в базе данных.
 /// </summary>
 public class DapperUserService : IUserService
 {
