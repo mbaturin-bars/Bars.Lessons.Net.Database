@@ -50,16 +50,14 @@ ADO.NET (ActiveX Data Objects for .NET) - это набор библиотек, 
 Попробуем создать приложение и подключить его к базе данных PostgreSQL, для этого:
 
 - Создадим новое консольное приложение - через интерфейс или командой
-
-```shell
-dotnet new console --name Database.Npgsql --framework net8.0
-```
+  ```shell
+  dotnet new console --name Database.Npgsql --framework net8.0
+  ```
 
 - Добавим зависимость от пакета Npgsql 8.0.2 (или любой актуальной) - через интерфейс или командой
-
-```shell
-dotnet add package Npgsql --version 8.0.2
-```
+  ```shell
+  dotnet add package Npgsql --version 8.0.2
+  ```
 
 - В класс `Program.cs` напишем следующий код
 
@@ -164,16 +162,14 @@ Dapper - это библиотека, которая расширяет возм
 Перепишем наш код с использованием Dapper в новом проекте, для этого:
 
 - Создадим новое консольное приложение - через интерфейс или командой
-
-```shell
-dotnet new console --name Database.Dapper --framework net8.0
-```
+  ```shell
+  dotnet new console --name Database.Dapper --framework net8.0
+  ```
 
 - Добавим зависимости от пакетов Dapper 2.1.28 и Npgsql 8.0.2 (или любых актуальных) - через интерфейс или командой
-
-```shell
-dotnet add package Dapper --version 2.1.28 && dotnet add package Npgsql --version 8.0.2
-```
+  ```shell
+  dotnet add package Dapper --version 2.1.28 && dotnet add package Npgsql --version 8.0.2
+  ```
 
 - В класс `Program.cs` напишем следующий код
 
@@ -198,19 +194,18 @@ const string createTableCommandText = @"
 await connection.ExecuteAsync(createTableCommandText);
 
 // 3.
-var users = new UserInfo
-var firstUser = "first_some_user";
-var secondUser = "second_some_user";
-var thirdUser = "some_third_login";
+var users = new[]
+{
+    new UserCreateInfo("first_some_user"),
+    new UserCreateInfo("second_some_user"),
+    new UserCreateInfo("some_third_login")
+};
 
 var insertRecordsCommandText = $@"
     INSERT INTO user_info(login, created_on) 
-    VALUES 
-        (@firstUser, now()), 
-        (@secondUser, now()), 
-        ('{thirdUser}', now());";
+    VALUES (@Login, now());";
 
-await connection.ExecuteAsync(insertRecordsCommandText, new { firstUser, secondUser });
+await connection.ExecuteAsync(insertRecordsCommandText, users);
 
 // 4.
 const string selectRecordsCommandText = @"SELECT id, login, created_on as ""CreationDate"" FROM user_info";
@@ -241,4 +236,175 @@ public record UserCreateInfo(string Login);
    Так мы получим уже готовый для использования список объектов со всеми данными пользователей, который потом удобно
    будет использовать дальше в приложении.
 
-### ORM на примере EntityFramework
+## ORM на примере EntityFramework
+
+Такое взаимоделйстве с базой данных имеет некоторые недостатки:
+
+- Код остаётся всё равно сложный - необходимо вручную описывать много типовых SQL запросов на любые действия с базой
+  данных;
+- Легко допустить ошибку, которая будет обнаружена только после запуска приложения.
+
+Можно ли в приложениях обойтись вообще без написания SQL запросов, полностью погрузившись в объектно-ориентированную
+логику? То есть вместо написания кода :
+
+```csharp
+var users = new[]
+{
+    new UserCreateInfo("first_some_user"),
+    new UserCreateInfo("second_some_user"),
+    new UserCreateInfo("some_third_login")
+};
+
+var insertRecordsCommandText = $@"
+    INSERT INTO user_info(login, created_on) 
+    VALUES (@Login, now());";
+
+await connection.ExecuteAsync(insertRecordsCommandText, new { firstUser, secondUser });
+```
+
+написать что то более лаконичное:
+
+```csharp
+var users = new[]
+{
+    new UserCreateInfo("first_some_user"),
+    new UserCreateInfo("second_some_user"),
+    new UserCreateInfo("some_third_login")
+};
+
+database.Add(users);
+```
+
+Да, такую возможность нам дают решения, называемые ORM (Object Relational Mapping - объектно реляционное связывание) -
+они позволяют нам работать с базами данных путём манипулирования объектами в приложении.
+
+ORM по сути скрывает от разработчика особенности базы данных, позволяя работать с:
+
+- таблицами - как классами ;
+- записями таблиц - как экземплярами классов;
+- столбцами таблиц - как свойствами класса;
+  а остальными сущностями БД (индексами, ограничениями и т.п) - через конфигурацию в коде приложения.
+
+Решений класса ORM не так много, потому что они достаточно сложны в разработке.
+В NET приложениях в основном вы можете встретить:
+
+- Entity Framework
+- NHibernate
+- различные "микро-ORM", например Dapper, linq2db, Massive, PetaPoco и др.
+
+Сейчас и в дальнейшем мы будем использовать Entity Framework как наиболее известную, продвинутую и имеющую наибольшее
+количесто написанной документации.
+
+Напишем приложение для такой же работы с пользователями с использованием Entity Framework, для этого:
+
+- Создадим новое консольное приложение - через интерфейс или командой:
+  ```shell
+  dotnet new console --name Database.EntityFramework --framework net8.0
+  ```
+- Добавим зависимость от пакета Npgsql.EntityFrameworkCore.PostgreSQL 8.0.2 (или любой актуальной - этот пакет является
+  адаптером EF к Postgresql и тянет за собой зависимости сразу от EntityFramework и Npgsql) - через интерфейс или
+  командой:
+  ```shell
+  dotnet add package Npgsql.EntityFrameworkCore.PostgreSQL--version 8.0.2
+  ```
+- Установим инструменты командной строки для EF - они нам пригодятся чуть позже:
+  ```shell
+  dotnet tool install --global dotnet-ef
+  ```
+- Установим вспомогательный пакет для утилиты - через интерфейс или командой:
+  ```shell
+  dotnet add package Microsoft.EntityFrameworkCore.Design --version 8.0.2
+  ```
+- Приступим к коду - опишем модель нашего пользователя в новом классе `UserInfo.cs`:
+  ```csharp
+  using System.ComponentModel.DataAnnotations;
+  using System.ComponentModel.DataAnnotations.Schema;
+  
+  namespace Database.EntityFramework;
+  
+  [Table("user_info", Schema = "public")]
+  public class UserInfo
+  {
+      [Key, Column("id"), DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+      public long Id { get; set; }
+  
+      [Column("login", TypeName = "varchar(100)"), Required]
+      public string Login { get; set; }
+  
+      [Column("created_on"), Required]
+      public DateTime CreationDate { get; set; }
+  }
+  ```
+  TODO В коде описывается
+- Опишем класс, через который будет происходить основное взаимодействие с базой данных - `ApplicationDbContext.cs`:
+  ```csharp
+  using Microsoft.EntityFrameworkCore;
+  
+  namespace Database.EntityFramework;
+  
+  /// <summary>
+  /// Контекст БД в приложении.
+  /// </summary>
+  public class ApplicationDbContext : DbContext
+  {
+      private const string ConnectionString =
+          "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=postgres";
+
+      public DbSet<UserInfo> Users { get; set; }
+
+      protected override void OnModelCreating(ModelBuilder modelBuilder)
+          => modelBuilder.Entity<UserInfo>()
+              .Property(u => u.CreationDate)
+              .HasDefaultValueSql("now()");
+
+      protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+          => optionsBuilder.UseNpgsql(ConnectionString);
+  }
+  ```
+  TODO В коде описывается
+- TODO Миграция базы данных
+- Мы описали код взаимодействия с БД и теперь мы можем описать код основного приложения - `Program.cs`
+  ```csharp
+  using Database.EntityFramework;
+  using Microsoft.EntityFrameworkCore;
+  
+  // 1.
+  await using var db = new ApplicationDbContext();
+  
+  // 2.
+  var users = new[]
+  {
+      new UserInfo { Login = "first_some_user" },
+      new UserInfo { Login = "second_some_user" },
+      new UserInfo { Login = "some_third_login" },
+  };
+  await db.Users.AddRangeAsync(users);
+  await db.SaveChangesAsync();
+  
+  // 3.
+  var usersList = await db.Users.ToListAsync();
+  foreach (var user in usersList)
+  {
+      Console.WriteLine($"Идентификатор {user.Id}, пользователь {user.Login}, дата создания - {user.CreationDate}");
+  }
+  ```
+  В рамках данного класса мы выполняем создание (2) и просмотр (3) записей из БД полностью в объектной логике - внешне
+  не зная об особенностях БД, её строении и не написав ни строчки SQL.
+
+Преимущества использования ORM после данной демонстрации должны быть вам очевидны:
+
+- Вам не нужно писать кучу типового кода - за вас всё делает ORM
+- Взаимодействие с БД происходит в естественном для приложения объектно-ориентированном подходе.
+- _В теории_ вы сможете использовать приложение с разными типами БД (в реальности не всё так просто).
+
+Однако, у ORM есть настолько же серьёзные недостатки:
+
+- Производительность может быть несколько ниже. SQL-ом написать оптимальный код для специфичных случаев легче, добиться
+  схожих результатов на ORM сложно;
+- ORM, например EF - не самый простой инструмент, его нужно изучать отдельно;
+- Абстрагирование от БД - иногда использование ORM разработчиками без понимания принципов работы БД приводит к крайне
+  неоптимальным решениям в коде.
+
+## Самостоятельная работа
+
+TODO
