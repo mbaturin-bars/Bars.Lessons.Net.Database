@@ -1,16 +1,9 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using Database.AspNetCoreExample.Models;
 using Database.AspNetCoreExample.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Database.AspNetCoreExample.Controllers;
-
-/// <summary>
-/// Информация о пользователе.
-/// </summary>
-/// <param name="Id"></param>
-/// <param name="Login">Логин пользователя.</param>
-/// <param name="CreationDate">Дата\время создания пользователя.</param>
-public sealed record UserInfo(long Id, string Login, DateTime CreationDate);
 
 /// <summary>
 /// Информация о создаваемом пользователе.
@@ -26,6 +19,11 @@ public sealed record UserCreationInfo(string Login);
 public class UserController : ControllerBase
 {
     private readonly IUserService _userService;
+    
+    /// <summary>
+    /// Создать экземпляр типа <see cref="UserController"/>.
+    /// </summary>
+    /// <param name="userService">Сервис, предоставляющий возможность работы с пользователями.</param>
     public UserController(IUserService userService) => _userService = userService;
 
     /// <summary>
@@ -34,7 +32,7 @@ public class UserController : ControllerBase
     /// <param name="cancellationToken">Токен отмены операции.</param>
     [HttpGet]
     [Route("list")]
-    [ProducesResponseType(typeof(IList<UserInfo>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(IList<UserInfo>), StatusCodes.Status200OK, "application/json")]
     public async Task<IList<UserInfo>> GetListAsync(CancellationToken cancellationToken)
         => await _userService.GetListAsync(cancellationToken);
 
@@ -43,9 +41,9 @@ public class UserController : ControllerBase
     /// </summary>
     /// <param name="userId">Идентификатор пользователя.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    [HttpGet("{userId}")]
-    [ProducesResponseType(typeof(UserInfo), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(long), StatusCodes.Status404NotFound)]
+    [HttpGet("{userId:long}")]
+    [ProducesResponseType(typeof(UserInfo), StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType(typeof(long), StatusCodes.Status404NotFound, "text/plain")]
     public async Task<ActionResult> GetAsync([FromRoute, Required] long userId, CancellationToken cancellationToken)
     {
         var userInfo = await _userService.GetAsync(userId, cancellationToken);
@@ -60,7 +58,7 @@ public class UserController : ControllerBase
     /// <param name="userInfo">Информация о создаваемом пользователе.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     [HttpPost]
-    [ProducesResponseType(typeof(long), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(long), StatusCodes.Status200OK, "text/plain")]
     public async Task<long> CreateAsync([FromBody, Required] UserCreationInfo userInfo, CancellationToken cancellationToken)
         => await _userService.CreateAsync(userInfo, cancellationToken);
 
@@ -79,9 +77,9 @@ public class UserController : ControllerBase
     /// </summary>
     /// <param name="userId">Идентификатор пользователя.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    [HttpDelete("{userId}")]
-    [ProducesResponseType(typeof(UserInfo), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(long), StatusCodes.Status404NotFound)]
+    [HttpDelete("{userId:long}")]
+    [ProducesResponseType(typeof(UserInfo), StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType(typeof(long), StatusCodes.Status404NotFound, "text/plain")]
     public async Task<ActionResult> DeleteAsync([FromRoute, Required] long userId, CancellationToken cancellationToken)
     {
         var deletedUserInfo = await _userService.DeleteAsync(userId, cancellationToken);

@@ -1,4 +1,5 @@
 ﻿using Database.AspNetCoreExample.Controllers;
+using Database.AspNetCoreExample.Models;
 
 namespace Database.AspNetCoreExample.Services;
 

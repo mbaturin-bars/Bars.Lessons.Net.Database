@@ -1,16 +1,22 @@
 ﻿using System.Data;
 using Dapper;
 using Database.AspNetCoreExample.Controllers;
+using Database.AspNetCoreExample.Models;
 using Npgsql;
 
-namespace Database.AspNetCoreExample.Services;
+namespace Database.AspNetCoreExample.Services.Dapper;
 
 /// <summary>
-/// Сервис, позволяющий работать с пользователями в базе данных.
+/// Сервис, позволяющий работать с пользователями в базе данных (реализация через Dapper).
 /// </summary>
 public class DapperUserService : IUserService
 {
     private readonly NpgsqlDataSource _dataSource;
+
+    /// <summary>
+    /// Создать экземпляр типа <see cref="DapperUserService"/>.
+    /// </summary>
+    /// <param name="dataSource">Источник соединений для БД PostgreSQL.</param>
     public DapperUserService(NpgsqlDataSource dataSource) => _dataSource = dataSource;
 
     /// <inheritdoc />
@@ -60,8 +66,8 @@ public class DapperUserService : IUserService
                 created_on = @CreationDate 
             WHERE id = @Id";
 
-        await connection.QueryFirstAsync<UserInfo>(
-            new CommandDefinition(commandText, new { userInfo.Id }, cancellationToken: cancellationToken));
+        await connection.ExecuteAsync(
+            new CommandDefinition(commandText, userInfo, cancellationToken: cancellationToken));
     }
 
     /// <inheritdoc />
@@ -77,7 +83,7 @@ public class DapperUserService : IUserService
         }
 
         const string commandText = @"DELETE FROM user_info WHERE id = @userId";
-        await connection.QueryFirstAsync<UserInfo>(
+        await connection.ExecuteAsync(
             new CommandDefinition(commandText, new { userId }, cancellationToken: cancellationToken));
 
         return userInfo;

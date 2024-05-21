@@ -2,29 +2,23 @@
 using System.ComponentModel.DataAnnotations.Schema;
 #pragma warning disable CS8618
 
-namespace Database.EntityFramework;
+namespace Database.AspNetCoreExample.Models;
 
 /// <summary>
 /// Информация о пользователе.
 /// </summary>
 [Table("user_info", Schema = "public")]
-public class UserInfo
+public sealed class UserInfo
 {
-    /// <summary>
-    /// Идентификатор
-    /// </summary>
+    /// <summary>Идентификтаор пользователя.</summary>
     [Key, Column("id"), DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public long Id { get; set; }
 
-    /// <summary>
-    /// Логин пользователя.
-    /// </summary>
+    /// <summary>Логин пользователя.</summary>
     [Column("login", TypeName = "varchar(100)"), Required]
     public string Login { get; set; }
 
-    /// <summary>
-    /// Дата создания.
-    /// </summary>
+    /// <summary>Дата\время создания пользователя.</summary>
     [Column("created_on"), Required]
     public DateTime CreationDate { get; set; }
 }

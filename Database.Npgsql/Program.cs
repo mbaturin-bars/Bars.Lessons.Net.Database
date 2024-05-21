@@ -17,7 +17,7 @@ const string createTableCommandText = @"
         CREATE TABLE IF NOT EXISTS user_info (
             id bigserial PRIMARY KEY, 
             login VARCHAR(100) NOT NULL, 
-            created_on TIMESTAMP WITH TIME ZONE NOT NULL
+            created_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
         )";
 
 await using (var cmd = dataSource.CreateCommand(createTableCommandText))
